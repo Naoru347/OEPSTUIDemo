@@ -68,20 +68,20 @@ def get_question_data(num):
     question = random.choice(QUESTIONS_BANK[num])
     print(f"Question {num}: {question}")
     notes = get_notes()
-    question_score = get_score("Enter a score between 1 and 3: ")
+    question_score = get_score("Enter a score between 0 and 3: ")
     return{"question": question, "notes": notes, "question score": question_score}
 
 def get_score(prompt, max_attempts=3):
     for _ in range(max_attempts):
         try:
             score = int(input(prompt))
-            if 1 <= score <= 3:
+            if 0 <= score <= 3:
                 return score
-            print("Score must be between 1 and 3: ")
+            print("Score must be between 0 and 3: ")
         except ValueError:
             print("Please enter a valid number.")
-    print(f"Maximum attempts ({max_attempts}) reached. Defaulting to score 1.")
-    return 1    
+    print(f"Maximum attempts ({max_attempts}) reached. Defaulting to score 0.")
+    return 0    
 
 def calculate_total_score(questions):
     # Calcuate the totale score by getting the weighted value of each questions score 

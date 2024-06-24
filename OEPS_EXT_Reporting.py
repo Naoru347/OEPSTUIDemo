@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
@@ -19,11 +20,14 @@ def determine_eap_requirement(total_score):
 
 def compile_student_list(data):
     student_list = []
+    one_year_ago = datetime.now() - timedelta(days=365)
     for entry in data:
-        student_name = entry['student']
-        total_score = entry['total score']
-        eap_requirement = determine_eap_requirement(total_score)
-        student_list.append([student_name, eap_requirement])
+        assessment_date = datetime.fromisoformat(entry['date'])
+        if assessment_date >= one_year_ago:
+            student_name = entry['student']
+            total_score = entry['total score']
+            eap_requirement = determine_eap_requirement(total_score)
+            student_list.append([student_name, eap_requirement])
     return sorted(student_list, key=lambda x: x[1])  # Sort by EAP requirement
 
 def create_pdf_report(student_list):

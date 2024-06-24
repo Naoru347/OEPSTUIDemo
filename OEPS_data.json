@@ -37112,5 +37112,64 @@
     "total score": 2.58,
     "band": "Low Pass",
     "EAP requirement": "EAP 6016 NOT REQUIRED"
+  },
+  {
+    "examiner": "Jay",
+    "student": "Jim Python",
+    "date": "2024-06-24T14:50:14.849117",
+    "questions": [
+      {
+        "question": "What motivated you to pursue your specific area of study within your field?",
+        "notes": [
+          "Doesn't answer question",
+          "Hems and Haws",
+          "Ventures down rabbit holes",
+          "Doesn't apologize"
+        ],
+        "question score": 1
+      },
+      {
+        "question": "What should a student do if they need extra help outside of class?",
+        "notes": [
+          "Just a quick question and only offers theoretical answers"
+        ],
+        "question score": 2
+      },
+      {
+        "question": "Please begin your mini-lesson now. I'll ask a few Q & A questions at the end. You have 5-6 minutes for your demo mini-lesson.",
+        "notes": [
+          "Great. No notes."
+        ],
+        "question score": 3
+      }
+    ],
+    "total score": 2.3,
+    "band": "Low Pass",
+    "EAP requirement": "EAP 6016 NOT REQUIRED"
+  },
+  {
+    "examiner": "Jim",
+    "student": "Sarah",
+    "date": "2024-06-24T14:57:16.310924",
+    "questions": [
+      {
+        "question": "How would you describe your primary research interests and their significance in the broader context of your field?",
+        "notes": [],
+        "question score": 0
+      },
+      {
+        "question": "Can you explain the procedure for submitting assignments in your course?",
+        "notes": [],
+        "question score": 0
+      },
+      {
+        "question": "Please begin your mini-lesson now. I'll ask a few Q & A questions at the end. You have 5-6 minutes for your demo mini-lesson.",
+        "notes": [],
+        "question score": 0
+      }
+    ],
+    "total score": 0.0,
+    "band": "No Pass",
+    "EAP requirement": "EAP 6016 REQUIRED"
   }
 ]
