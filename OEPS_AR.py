@@ -10,6 +10,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet
 import io
 from statistics import median, mode, mean
+import pandas as pd
+from collections import defaultdict
 
 DATA_FILE = "OEPS_data.json"
 
@@ -27,6 +29,67 @@ def load_data():
 def filter_data_by_date_range(data, start_date, end_date):
     return [entry for entry in data if start_date <= datetime.fromisoformat(entry['date']) <= end_date]
 
+import pandas as pd
+
+def generate_score_trend_visualization(filtered_data):
+    # Convert data to pandas DataFrame
+    df = pd.DataFrame([(datetime.fromisoformat(entry['date']), entry['total score']) for entry in filtered_data],
+                      columns=['date', 'score'])
+    
+    # Resample data to monthly averages
+    monthly_avg = df.set_index('date').resample('QE')['score'].mean()
+    
+    # Create the plot
+    plt.figure(figsize=(12, 6))
+    plt.plot(monthly_avg.index, monthly_avg.values, marker='o')
+    plt.title('Average Scores by Quarter')
+    plt.xlabel('Date')
+    plt.ylabel('Average Total Score')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    
+    # Add value labels on the points
+    for x, y in zip(monthly_avg.index, monthly_avg.values):
+        plt.annotate(f'{y:.2f}', (x, y), textcoords="offset points", xytext=(0,10), ha='center')
+    
+    img_buffer = io.BytesIO()
+    plt.savefig(img_buffer, format='png')
+    img_buffer.seek(0)
+    plt.close()
+    
+    return ('Average Monthly Scores Over Time', img_buffer)
+
+def generate_temporal_analysis(filtered_data):
+    exam_dates = [datetime.fromisoformat(entry['date']) for entry in filtered_data]
+    
+    # Aggregate by quarter
+    exams_per_quarter = defaultdict(int)
+    for date in exam_dates:
+        quarter = f"{date.year} Q{(date.month-1)//3 + 1}"
+        exams_per_quarter[quarter] += 1
+    
+    # Sort quarters chronologically
+    sorted_quarters = sorted(exams_per_quarter.items(), key=lambda x: datetime.strptime(x[0], "%Y Q%m"))
+    
+    # Calculate overall trend
+    if len(sorted_quarters) > 1:
+        first_half = sum(count for _, count in sorted_quarters[:len(sorted_quarters)//2])
+        second_half = sum(count for _, count in sorted_quarters[len(sorted_quarters)//2:])
+        trend = "Increasing" if second_half > first_half else "Decreasing"
+    else:
+        trend = "Not enough data to determine trend"
+    
+    # Find the busiest quarter
+    busiest_quarter = max(exams_per_quarter, key=exams_per_quarter.get)
+    
+    return {
+        "quarters": sorted_quarters,
+        "trend": trend,
+        "busiest_quarter": busiest_quarter,
+        "busiest_quarter_count": exams_per_quarter[busiest_quarter]
+    }
+
+# Helper function to create report visualizations
 def generate_visualizations(filtered_data):
     visualizations = []
 
@@ -41,22 +104,9 @@ def generate_visualizations(filtered_data):
     visualizations.append(('Band Distribution', img_buffer))
     plt.close()
 
-    # TEMPORARILY DEPRECATED Score trends over time
-    # dates = [datetime.fromisoformat(entry['date']) for entry in filtered_data]
-    # scores = [entry['total score'] for entry in filtered_data]
-    
-    # plt.figure(figsize=(12, 6))
-    # plt.plot(dates, scores, marker='o')
-    # plt.title('Score Trends Over Time')
-    # plt.xlabel('Date')
-    # plt.ylabel('Total Score')
-    # plt.xticks(rotation=45)
-    # plt.tight_layout()
-    # img_buffer = io.BytesIO()
-    # plt.savefig(img_buffer, format='png')
-    # img_buffer.seek(0)
-    # visualizations.append(('Score Trends Over Time', img_buffer))
-    # plt.close()
+    # Score trends over time
+    score_trend_vis = generate_score_trend_visualization(filtered_data)
+    visualizations.append(score_trend_vis)
 
     # Bar chart of average scores by question
     question_scores = [[], [], []]
@@ -139,6 +189,7 @@ def generate_visualizations(filtered_data):
     
     return visualizations, examiner_scores
 
+# Helper function to generate visualizations of the EAP requirement data
 def generate_eap_requirement_visualization(filtered_data):
     # Count EAP requirements
     eap_counts = Counter(entry['EAP requirement'] for entry in filtered_data)
@@ -155,10 +206,12 @@ def generate_eap_requirement_visualization(filtered_data):
     
     return img_buffer
 
+# Helper function to generate a report, will call other functions
 def create_report(start_date, end_date):
     data = load_data()
     filtered_data = filter_data_by_date_range(data, start_date, end_date)
     visualizations, examiner_scores = generate_visualizations(filtered_data)
+    temporal_data = generate_temporal_analysis(filtered_data)
     
     if not filtered_data:
         print(f"No data available for the selected period.")
@@ -199,16 +252,6 @@ def create_report(start_date, end_date):
     examiners = set(entry['examiner'] for entry in filtered_data)
     exams_per_examiner = total_exams / len(examiners) if examiners else 0
     
-    # Temporal analysis
-    exam_dates = [datetime.fromisoformat(entry['date']) for entry in filtered_data]
-    exams_per_month = Counter(date.strftime('%Y-%m') for date in exam_dates)
-    busiest_day = max(exam_dates, key=exam_dates.count) if exam_dates else None
-    
-    # Performance trends
-    mid_point = len(filtered_data) // 2
-    first_half_avg = mean([entry['total score'] for entry in filtered_data[:mid_point]]) if filtered_data else 0
-    second_half_avg = mean([entry['total score'] for entry in filtered_data[mid_point:]]) if filtered_data else 0
-
     # Add statistics to the report
     elements.append(Paragraph("Summary Statistics", styles['Heading2']))
     elements.append(Paragraph(f"Total Examinations: {total_exams}", styles['Normal']))
@@ -234,21 +277,58 @@ def create_report(start_date, end_date):
     elements.append(Paragraph(f"Total Examiners: {len(examiners)}", styles['Normal']))
     elements.append(Paragraph(f"Average Exams per Examiner: {exams_per_examiner:.2f}", styles['Normal']))
     
-    elements.append(Paragraph("Temporal Analysis", styles['Heading3']))
-    elements.append(Paragraph(f"Busiest Day: {busiest_day.date() if busiest_day else 'N/A'}", styles['Normal']))
-    elements.append(Paragraph("Exams per Month:", styles['Normal']))
-    for month, count in sorted(exams_per_month.items()):
-        elements.append(Paragraph(f"  - {month}: {count}", styles['Normal']))
-    
-    elements.append(Paragraph("Performance Trends", styles['Heading3']))
-    elements.append(Paragraph(f"First Half Average Score: {first_half_avg:.2f}", styles['Normal']))
-    elements.append(Paragraph(f"Second Half Average Score: {second_half_avg:.2f}", styles['Normal']))
-
     # Examiner scoring analysis
     elements.append(Paragraph("Examiner Scoring Analysis", styles['Heading3']))
     for examiner, scores in examiner_scores.items():
         avg_score = mean(scores)
         elements.append(Paragraph(f"{examiner}: Average Score = {avg_score:.2f}, Number of Exams = {len(scores)}", styles['Normal']))
+
+    # Temporal analysis
+    elements.append(Paragraph("Temporal Analysis", styles['Heading3']))
+    elements.append(Paragraph(f"Busiest Quarter: {temporal_data['busiest_quarter']} with {temporal_data['busiest_quarter_count']} exams", styles['Normal']))
+    elements.append(Paragraph(f"Overall Trend: {temporal_data['trend']}", styles['Normal']))
+
+    # Create a table for the quarterly data
+    quarter_data = [["Quarter", "Number of Exams"]]
+    for quarter, count in temporal_data['quarters']:
+        quarter_data.append([quarter, str(count)])
+
+    quarter_table = Table(quarter_data)
+    quarter_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('TOPPADDING', (0, 1), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+
+    elements.append(quarter_table)
+
+    # Add a visualization of the quarterly data
+    plt.figure(figsize=(12, 6))
+    quarters, counts = zip(*temporal_data['quarters'])
+    plt.bar(quarters, counts)
+    plt.title('Number of Exams per Quarter')
+    plt.xlabel('Quarter')
+    plt.ylabel('Number of Exams')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    img_buffer = io.BytesIO()
+    plt.savefig(img_buffer, format='png')
+    img_buffer.seek(0)
+    plt.close()
+
+    elements.append(Image(img_buffer, width=500, height=300))
 
     elements.append(PageBreak())
 
@@ -258,42 +338,6 @@ def create_report(start_date, end_date):
     eap_img_buffer = generate_eap_requirement_visualization(filtered_data)
     elements.append(Image(eap_img_buffer, width=400, height=300))
     
-    # DEPRECATED FOR NOW EAP requirement trends over time
-    # eap_trends = {}
-    # for entry in filtered_data:
-    #     date = datetime.fromisoformat(entry['date']).date()
-    #     eap_req = entry['EAP requirement']
-    #     if date not in eap_trends:
-    #         eap_trends[date] = Counter()
-    #     eap_trends[date][eap_req] += 1
-    
-    # DEPRECATED FOR NOW Create a table for EAP requirement trends
-    # table_data = [['Date', 'EAP 6016 REQUIRED', 'EAP 6016 NOT REQUIRED']]
-    # for date in sorted(eap_trends.keys()):
-    #     row = [date.strftime('%Y-%m-%d'), 
-    #            eap_trends[date]['EAP 6016 REQUIRED'], 
-    #            eap_trends[date]['EAP 6016 NOT REQUIRED']]
-    #     table_data.append(row)
-    
-    # table = Table(table_data)
-    # table.setStyle(TableStyle([
-    #     ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-    #     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-    #     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-    #     ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-    #     ('FONTSIZE', (0, 0), (-1, 0), 12),
-    #     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-    #     ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-    #     ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-    #     ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-    #     ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-    #     ('FONTSIZE', (0, 1), (-1, -1), 10),
-    #     ('TOPPADDING', (0, 1), (-1, -1), 6),
-    #     ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
-    #     ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    # ]))
-    
-    # elements.append(table)
     elements.append(PageBreak())
 
     # Remaining visualizations
